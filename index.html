@@ -12,7 +12,7 @@
             color: #fff; 
             padding: 20px; 
             margin: 0; 
-            padding-bottom: 100px; /* Space for the bottom button */
+            padding-bottom: 120px; /* More space for the larger bottom button */
         }
         h1 { font-size: 1.5rem; margin-top: 0; }
         
@@ -74,32 +74,31 @@
         /* Hidden file input */
         #upload { display: none; }
 
-        /* Floating Bottom-Middle Plus Button */
+        /* Floating Bottom-Middle Plus Button container */
         .fab-container {
             position: fixed;
-            bottom: 25px;
+            bottom: 30px; /* Positioned slightly higher */
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
         }
+        /* Style for the button, making it transparent and large enough */
         .fab {
-            background: #1db954;
-            color: #fff;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            cursor: pointer;
+            background: none; /* Make the button itself transparent */
             border: none;
-            transition: transform 0.1s, background 0.2s;
+            cursor: pointer;
+            padding: 0;
+            transition: transform 0.1s;
+            outline: none; /* Hide default browser highlight */
+        }
+        /* Style for the image within the button */
+        .fab img {
+            width: 80px;  /* Adjust the size of the icon as needed */
+            height: 80px; /* Adjust the size of the icon as needed */
+            display: block; /* Avoid unwanted spacing */
         }
         .fab:active {
-            transform: translateX(-50%) scale(0.92);
-            background: #1aa34a;
+            transform: scale(0.92); /* Subtle interaction effect */
         }
     </style>
 </head>
@@ -120,10 +119,12 @@
     <!-- Playlist -->
     <ul id="playlist"></ul>
 
-    <!-- Hidden File Input & Floating + Button -->
+    <!-- Hidden File Input & Floating Image + Button -->
     <input type="file" id="upload" multiple accept="audio/mp3">
     <div class="fab-container">
-        <button class="fab" onclick="document.getElementById('upload').click()">+</button>
+        <button class="fab" onclick="document.getElementById('upload').click()">
+            <img src="plus-icon.png" alt="Add Music">
+        </button>
     </div>
 
     <script>
