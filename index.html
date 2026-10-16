@@ -6,32 +6,135 @@
     <title>Offline MP3 Player</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        body { font-family: -apple-system, sans-serif; background: #121212; color: #fff; padding: 20px; margin: 0; }
-        h1 { font-size: 1.5rem; }
-        input[type="file"] { margin: 15px 0; background: #333; color: #fff; padding: 10px; border-radius: 8px; border: none; width: 100%; box-sizing: border-box;}
-        ul { list-style: none; padding: 0; }
-        li { padding: 12px; background: #1e1e1e; margin-bottom: 8px; border-radius: 6px; cursor: pointer; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background: #121212; 
+            color: #fff; 
+            padding: 20px; 
+            margin: 0; 
+            padding-bottom: 100px; /* Space for the bottom button */
+        }
+        h1 { font-size: 1.5rem; margin-top: 0; }
+        
+        /* Album Art Box */
+        .player-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+        .album-art {
+            width: 200px;
+            height: 200px;
+            background: #2a2a2a;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .album-art img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .album-art svg {
+            width: 64px;
+            height: 64px;
+            fill: #555;
+        }
+        .track-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-align: center;
+            word-break: break-all;
+        }
+        audio { width: 100%; margin-top: 10px; }
+
+        /* Playlist */
+        ul { list-style: none; padding: 0; margin-top: 20px; }
+        li { 
+            padding: 12px 16px; 
+            background: #1e1e1e; 
+            margin-bottom: 8px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
         li:active { background: #333; }
-        audio { width: 100%; margin-top: 20px; }
+        li.active { background: #1db954; color: #000; font-weight: bold; }
+
+        /* Hidden file input */
+        #upload { display: none; }
+
+        /* Floating Bottom-Middle Plus Button */
+        .fab-container {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+        }
+        .fab {
+            background: #1db954;
+            color: #fff;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            cursor: pointer;
+            border: none;
+            transition: transform 0.1s, background 0.2s;
+        }
+        .fab:active {
+            transform: translateX(-50%) scale(0.92);
+            background: #1aa34a;
+        }
     </style>
 </head>
 <body>
 
-    <h1>My Offline MP3s</h1>
-    <input type="file" id="upload" multiple accept="audio/mp3">
-    
+    <h1>My Music</h1>
+
+    <!-- Now Playing / Album Art View -->
+    <div class="player-card">
+        <div class="album-art" id="artContainer">
+            <!-- Default Music Note Icon Placeholder -->
+            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
+        <div class="track-title" id="currentTrackTitle">Select a song to play</div>
+        <audio id="audioPlayer" controls></audio>
+    </div>
+
+    <!-- Playlist -->
     <ul id="playlist"></ul>
 
-    <audio id="audioPlayer" controls></audio>
+    <!-- Hidden File Input & Floating + Button -->
+    <input type="file" id="upload" multiple accept="audio/mp3">
+    <div class="fab-container">
+        <button class="fab" onclick="document.getElementById('upload').click()">+</button>
+    </div>
 
     <script>
-        // Basic IndexedDB setup for storing MP3 files locally on iPhone
         let db;
         const request = indexedDB.open("MusicDB", 1);
 
         request.onupgradeneeded = (e) => {
             db = e.target.result;
-            db.createObjectStore("songs", { keyPath: "name" });
+            if (!db.objectStoreNames.contains("songs")) {
+                db.createObjectStore("songs", { keyPath: "name" });
+            }
         };
 
         request.onsuccess = (e) => {
@@ -42,6 +145,8 @@
         // Handle File Batch Upload
         document.getElementById('upload').addEventListener('change', (event) => {
             const files = event.target.files;
+            if (files.length === 0) return;
+
             const transaction = db.transaction(["songs"], "readwrite");
             const store = transaction.objectStore("songs");
 
@@ -50,7 +155,6 @@
             }
 
             transaction.oncomplete = () => {
-                alert("Songs imported successfully!");
                 loadPlaylist();
             };
         });
@@ -70,21 +174,10 @@
                     const song = cursor.value;
                     const li = document.createElement('li');
                     li.textContent = song.name;
+                    li.dataset.name = song.name;
                     
                     li.onclick = () => {
-                        const audioUrl = URL.createObjectURL(song.fileBlob);
-                        const player = document.getElementById('audioPlayer');
-                        player.src = audioUrl;
-                        player.play();
-
-                        // Update Lock Screen metadata using Media Session API
-                        if ('mediaSession' in navigator) {
-                            navigator.mediaSession.metadata = new MediaMetadata({
-                                title: song.name,
-                                artist: 'Local Storage',
-                                album: 'My Offline PWA'
-                            });
-                        }
+                        playSong(song);
                     };
 
                     listElement.appendChild(li);
@@ -93,7 +186,33 @@
             };
         }
 
-        // Register Service Worker for Offline capability
+        function playSong(song) {
+            // Highlight active song in playlist
+            document.querySelectorAll('#playlist li').forEach(el => el.classList.remove('active'));
+            const activeLi = Array.from(document.querySelectorAll('#playlist li')).find(el => el.dataset.name === song.name);
+            if (activeLi) activeLi.classList.add('active');
+
+            document.getElementById('currentTrackTitle').textContent = song.name;
+
+            const audioUrl = URL.createObjectURL(song.fileBlob);
+            const player = document.getElementById('audioPlayer');
+            player.src = audioUrl;
+            player.play();
+
+            // Try to extract ID3 Album Art using browser capabilities if available
+            // (For now, keeping placeholder clean)
+
+            // Media Session API for lock screen controls
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: song.name,
+                    artist: 'Offline PWA',
+                    album: 'My Local Music'
+                });
+            }
+        }
+
+        // Register Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
