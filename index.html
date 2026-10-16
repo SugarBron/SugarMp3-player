@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline MP3 Player</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #121212; color: #fff; padding: 20px; margin: 0; }
+        h1 { font-size: 1.5rem; }
+        input[type="file"] { margin: 15px 0; background: #333; color: #fff; padding: 10px; border-radius: 8px; border: none; width: 100%; box-sizing: border-box;}
+        ul { list-style: none; padding: 0; }
+        li { padding: 12px; background: #1e1e1e; margin-bottom: 8px; border-radius: 6px; cursor: pointer; }
+        li:active { background: #333; }
+        audio { width: 100%; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>My Offline MP3s</h1>
+    <input type="file" id="upload" multiple accept="audio/mp3">
+    
+    <ul id="playlist"></ul>
+
+    <audio id="audioPlayer" controls></audio>
+
+    <script>
+        // Basic IndexedDB setup for storing MP3 files locally on iPhone
+        let db;
+        const request = indexedDB.open("MusicDB", 1);
+
+        request.onupgradeneeded = (e) => {
+            db = e.target.result;
+            db.createObjectStore("songs", { keyPath: "name" });
+        };
+
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            loadPlaylist();
+        };
+
+        // Handle File Batch Upload
+        document.getElementById('upload').addEventListener('change', (event) => {
+            const files = event.target.files;
+            const transaction = db.transaction(["songs"], "readwrite");
+            const store = transaction.objectStore("songs");
+
+            for (let file of files) {
+                store.put({ name: file.name, fileBlob: file });
+            }
+
+            transaction.oncomplete = () => {
+                alert("Songs imported successfully!");
+                loadPlaylist();
+            };
+        });
+
+        // Load and display stored songs
+        function loadPlaylist() {
+            const listElement = document.getElementById('playlist');
+            listElement.innerHTML = "";
+            
+            const transaction = db.transaction(["songs"], "readonly");
+            const store = transaction.objectStore("songs");
+            const request = store.openCursor();
+
+            request.onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const song = cursor.value;
+                    const li = document.createElement('li');
+                    li.textContent = song.name;
+                    
+                    li.onclick = () => {
+                        const audioUrl = URL.createObjectURL(song.fileBlob);
+                        const player = document.getElementById('audioPlayer');
+                        player.src = audioUrl;
+                        player.play();
+
+                        // Update Lock Screen metadata using Media Session API
+                        if ('mediaSession' in navigator) {
+                            navigator.mediaSession.metadata = new MediaMetadata({
+                                title: song.name,
+                                artist: 'Local Storage',
+                                album: 'My Offline PWA'
+                            });
+                        }
+                    };
+
+                    listElement.appendChild(li);
+                    cursor.continue();
+                }
+            };
+        }
+
+        // Register Service Worker for Offline capability
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>
