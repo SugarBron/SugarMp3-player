@@ -51,25 +51,83 @@
         .track-title {
             font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             text-align: center;
             word-break: break-all;
         }
-        audio { width: 100%; margin-top: 10px; }
+        
+        /* Player Control Buttons with Custom Images */
+        .player-controls {
+            display: flex;
+            gap: 25px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .control-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            outline: none;
+            transition: transform 0.1s;
+        }
+        .control-btn img {
+            width: 48px;
+            height: 48px;
+            display: block;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+        .control-btn:active {
+            transform: scale(0.9);
+        }
+
+        audio { width: 100%; margin-top: 5px; }
 
         /* Playlist items */
         ul { list-style: none; padding: 0; margin-top: 20px; }
         li { 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             padding: 14px 16px; 
             background: #1e1e1e; 
             margin-bottom: 10px; 
             border-radius: 12px; 
-            cursor: pointer; 
             font-size: 0.95rem;
             transition: background 0.2s;
         }
-        li:active { background: #333; }
         li.active { background: #1db954; color: #000; font-weight: bold; }
+        
+        .song-name {
+            cursor: pointer;
+            flex-grow: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 10px;
+        }
+
+        /* Custom Image Delete Button */
+        .delete-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            outline: none;
+            display: flex;
+            align-items: center;
+            transition: transform 0.1s;
+        }
+        .delete-btn img {
+            width: 24px;
+            height: 24px;
+            display: block;
+            border-radius: 6px;
+        }
+        .delete-btn:active {
+            transform: scale(0.85);
+        }
 
         /* Hidden file input */
         #upload { display: none; }
@@ -90,12 +148,11 @@
             transition: transform 0.1s;
             outline: none;
         }
-        /* Rounded corners for the plus icon image */
         .fab img {
             width: 75px;
             height: 75px;
             display: block;
-            border-radius: 20px; /* Rounds the corners of your plus icon image */
+            border-radius: 20px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
         .fab:active {
@@ -113,6 +170,17 @@
             <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
         </div>
         <div class="track-title" id="currentTrackTitle">Select a song to play</div>
+        
+        <!-- Custom Image Skip Buttons -->
+        <div class="player-controls">
+            <button class="control-btn" id="prevBtn" title="Previous">
+                <img src="prev-icon.png" alt="Previous">
+            </button>
+            <button class="control-btn" id="nextBtn" title="Next">
+                <img src="next-icon.png" alt="Next">
+            </button>
+        </div>
+
         <audio id="audioPlayer" controls></audio>
     </div>
 
@@ -130,6 +198,7 @@
     <script>
         let db;
         let songArray = [];
+        let currentSongName = null;
 
         const request = indexedDB.open("MusicDB", 1);
 
@@ -179,20 +248,70 @@
                     songArray.push(song);
 
                     const li = document.createElement('li');
-                    li.textContent = song.name;
                     li.dataset.name = song.name;
+                    if (song.name === currentSongName) li.classList.add('active');
+
+                    // Song Title (Click to Play)
+                    const span = document.createElement('span');
+                    span.textContent = song.name;
+                    span.className = 'song-name';
+                    span.onclick = () => playSong(song);
+
+                    // Delete Button with Custom X Image
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'delete-btn';
+                    delBtn.title = 'Delete Song';
                     
-                    li.onclick = () => {
-                        playSong(song);
+                    const delImg = document.createElement('img');
+                    delImg.src = 'x-icon.png';
+                    delImg.alt = 'Delete';
+                    delBtn.appendChild(delImg);
+
+                    delBtn.onclick = (event) => {
+                        event.stopPropagation();
+                        deleteSong(song.name);
                     };
 
+                    li.appendChild(span);
+                    li.appendChild(delBtn);
                     listElement.appendChild(li);
                     cursor.continue();
                 }
             };
         }
 
+        // Delete a song from IndexedDB
+        function deleteSong(songName) {
+            const transaction = db.transaction(["songs"], "readwrite");
+            const store = transaction.objectStore("songs");
+            store.delete(songName);
+
+            transaction.oncomplete = () => {
+                if (currentSongName === songName) {
+                    const player = document.getElementById('audioPlayer');
+                    player.pause();
+                    player.src = "";
+                    currentSongName = null;
+                    document.getElementById('currentTrackTitle').textContent = "Select a song to play";
+                }
+                loadPlaylist();
+            };
+        }
+
+        // Play a random track (Shuffle behavior for Next/Prev)
+        function playRandomSong() {
+            if (songArray.length === 0) return;
+            const randomIndex = Math.floor(Math.random() * songArray.length);
+            playSong(songArray[randomIndex]);
+        }
+
+        // Hook up Skip buttons to random shuffle selection
+        document.getElementById('nextBtn').onclick = playRandomSong;
+        document.getElementById('prevBtn').onclick = playRandomSong;
+
         function playSong(song) {
+            currentSongName = song.name;
+            
             document.querySelectorAll('#playlist li').forEach(el => el.classList.remove('active'));
             const activeLi = Array.from(document.querySelectorAll('#playlist li')).find(el => el.dataset.name === song.name);
             if (activeLi) activeLi.classList.add('active');
@@ -204,12 +323,9 @@
             player.src = audioUrl;
             player.play();
 
-            // Continuous Shuffle
+            // Continuous Shuffle when song ends
             player.onended = () => {
-                if (songArray.length > 0) {
-                    const randomIndex = Math.floor(Math.random() * songArray.length);
-                    playSong(songArray[randomIndex]);
-                }
+                playRandomSong();
             };
 
             if ('mediaSession' in navigator) {
