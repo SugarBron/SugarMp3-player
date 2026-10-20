@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Offline MP3 Player</title>
     <link rel="manifest" href="manifest.json">
+    <!-- Include jsmediatags library for reading embedded album art -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
@@ -56,7 +58,7 @@
             word-break: break-all;
         }
         
-        /* Player Control Buttons with Custom Images */
+        /* Custom Image Skip Buttons */
         .player-controls {
             display: flex;
             gap: 25px;
@@ -167,6 +169,7 @@
     <!-- Now Playing / Album Art View -->
     <div class="player-card">
         <div class="album-art" id="artContainer">
+            <!-- Default Placeholder Icon -->
             <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
         </div>
         <div class="track-title" id="currentTrackTitle">Select a song to play</div>
@@ -293,6 +296,7 @@
                     player.src = "";
                     currentSongName = null;
                     document.getElementById('currentTrackTitle').textContent = "Select a song to play";
+                    document.getElementById('artContainer').innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
                 }
                 loadPlaylist();
             };
@@ -322,6 +326,28 @@
             const player = document.getElementById('audioPlayer');
             player.src = audioUrl;
             player.play();
+
+            // Extract embedded album art using jsmediatags
+            jsmediatags.read(song.fileBlob, {
+                onSuccess: function(tag) {
+                    const image = tag.tags.picture;
+                    if (image) {
+                        let base64String = "";
+                        for (let i = 0; i < image.data.length; i++) {
+                            base64String += String.fromCharCode(image.data[i]);
+                        }
+                        let base64 = "data:" + image.format + ";base64," + window.btoa(base64String);
+                        document.getElementById('artContainer').innerHTML = `<img src="${base64}" alt="Album Art">`;
+                    } else {
+                        // Fallback icon if no embedded image exists in the mp3 file
+                        document.getElementById('artContainer').innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                    }
+                },
+                onError: function() {
+                    // Fallback on error
+                    document.getElementById('artContainer').innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>`;
+                }
+            });
 
             // Continuous Shuffle when song ends
             player.onended = () => {
